@@ -3,6 +3,8 @@ name: 'Issue Triage (BWSM + Tools)'
 on:
   issues:
     types: [opened]
+  workflow_call:
+    # 允许被其他工作流调用
 
 # 1. 设置 BWSM 访问令牌 (来自 Secrets)
 env:
