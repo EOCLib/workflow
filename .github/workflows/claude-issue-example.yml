@@ -1,0 +1,22 @@
+# 这是一个示例文件，展示如何在其他仓库中使用 Claude Code workflow
+# 在其他仓库中，创建类似的 workflow 文件即可
+# 
+# 使用方法：
+# 1. 将 your-org/workflow 替换为实际的 workflow 仓库路径
+# 2. 在目标仓库的 Secrets 中配置 OPENAI_API_KEY
+
+name: Claude Issue Comment
+
+on:
+  issue_comment:
+    types: [created]
+
+jobs:
+  claude:
+    if: |
+      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude'))
+    # 请将 your-org/workflow 替换为实际的仓库路径，例如：catvote/workflow
+    uses: EOCLib/workflows/.github/workflows/claude-issue.yml@main
+    secrets:
+      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
