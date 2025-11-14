@@ -1,19 +1,13 @@
-# .github/workflows/reusable-deploy.yml
-# 这是“模板”文件，定义了“如何做”
+name: 服务部署
 
-name: Reusable Deploy
-
-# 1. 'workflow_call' 允许这个工作流被其他工作流调用
 on:
   workflow_call:
-    # 2. 'inputs' 定义了调用时需要传入的参数
     inputs:
       image-name:
-        description: 'The name of the docker image (e.g., backend_achievement)'
+        description: "The name of the docker image (e.g., backend_achievement)"
         required: true
         type: string
-    
-    # 3. 'secrets' 声明了调用方必须“传递”过来的 Secrets
+
     secrets:
       REGISTRY_PASSWORD:
         required: true
@@ -24,20 +18,17 @@ jobs:
   deploy:
     runs-on: self-hosted
     steps:
-      # 这个 checkout 会拉取“调用方”仓库的代码
-      - name: Checkout code
+      - name: 拉取代码
         uses: actions/checkout@v4
 
-      - name: Login to Docker Registry
+      - name: 登录 Docker 仓库
         run: |
-          # 4. 使用传递过来的 Secret 登录
           echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login reg.eveonecat.cn -u catvote --password-stdin
 
-      - name: Build and Push Docker image
+      - name: 构建和推送 Docker 镜像
         run: |
-          # 5. 使用传递过来的 input 参数构建镜像
           IMAGE_TAG="reg.eveonecat.cn/catvote/${{ inputs.image-name }}:latest"
-          
+
           docker build -t $IMAGE_TAG .
           echo "=== 镜像构建完成 ==="
           docker images $IMAGE_TAG --format "table {{.Repository}}\t{{.Tag}}\t{{.Size}}\t{{.CreatedAt}}"
@@ -45,11 +36,10 @@ jobs:
           echo "镜像大小: $IMAGE_SIZE"
           docker push $IMAGE_TAG
           echo "镜像推送完成: $IMAGE_TAG"
-          
-      - name: Trigger Update on Servers
+
+      - name: 触发服务器更新
         run: |
           echo "开始触发服务器更新..."
-          # 6. 使用传递过来的 Secret 触发更新
           curl -H "Authorization: Bearer ${{ secrets.DEPLOY_TOKEN }}" http://110.42.32.187:9090/v1/update
           echo "服务器 110.42.32.187 更新请求已发送"
           curl -H "Authorization: Bearer ${{ secrets.DEPLOY_TOKEN }}" http://110.42.32.184:9090/v1/update
