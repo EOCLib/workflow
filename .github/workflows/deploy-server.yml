@@ -15,7 +15,7 @@ jobs:
     # 1. 注入 BWSM 访问令牌和 YML 配置的 UUID
     env:
       BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
-      BWS_CONFIG_UUID: ${{ secrets.BWS_CONFIG_UUID }}
+      BWS_CONFIG_UUID: e4311e93-a592-47bc-aff3-b395012d4003
 
     steps:
       - name: 拉取代码
