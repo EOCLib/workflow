@@ -18,8 +18,10 @@ jobs:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude'))
     # 必须声明权限，这些权限会传递给被调用的工作流
+    # 需要 id-token: write 权限以便 Claude Code Action 获取 OIDC token
     permissions:
       issues: write
+      id-token: write
     # 请将 EOCLib/workflow 替换为实际的仓库路径，例如：catvote/workflow
     uses: EOCLib/workflow/.github/workflows/claude-issue.yml@main
     secrets:

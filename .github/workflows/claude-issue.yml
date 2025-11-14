@@ -22,8 +22,10 @@ jobs:
     runs-on: self-hosted
     
     # 2. 权限：必须授予 "issues: write" 权限，gh 命令才能生效
+    # 同时需要 "id-token: write" 权限，以便 Claude Code Action 获取 OIDC token
     permissions:
       issues: write
+      id-token: write
 
     steps:
       # 3. 从 BWSM 拉取 YML 配置文件 (来自您的 deploy-server.yml)
