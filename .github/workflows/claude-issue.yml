@@ -14,7 +14,7 @@ env:
 
 jobs:
   triage:
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     
     # 2. 权限：必须授予 "issues: write" 权限，gh 命令才能生效
     permissions:
