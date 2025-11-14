@@ -22,4 +22,7 @@ jobs:
       issues: write
     # 请将 EOCLib/workflow 替换为实际的仓库路径，例如：catvote/workflow
     uses: EOCLib/workflow/.github/workflows/claude-issue.yml@main
+    secrets:
+      # 传递 BWS_ACCESS_TOKEN secret 给被调用的工作流
+      BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
 

@@ -5,8 +5,13 @@ on:
     types: [opened]
   workflow_call:
     # 允许被其他工作流调用
+    secrets:
+      BWS_ACCESS_TOKEN:
+        description: 'Bitwarden Secrets Manager 访问令牌'
+        required: true
 
 # 1. 设置 BWSM 访问令牌 (来自 Secrets)
+# 当作为可重用工作流被调用时，使用传入的 secret；直接触发时使用当前仓库的 secret
 env:
   BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
   # !! 替换为您存储 Claude YML 配置的 UUID !!
