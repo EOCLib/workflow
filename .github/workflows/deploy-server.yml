@@ -19,8 +19,7 @@ jobs:
     steps:
       - name: 拉取代码
         uses: actions/checkout@v4
-
-      # 2. 从 Bitwarden Secrets Manager 拉取所有配置
+# 2. 从 Bitwarden Secrets Manager 拉取所有配置
       - name: ⚙️ 从 Bitwarden Secrets Manager 拉取密钥
         shell: bash
         run: |
@@ -49,20 +48,34 @@ jobs:
           REGISTRY_PASSWORD_VALUE=$(bws secret get $REG_PASS_UUID | jq -r .value)
           echo "::add-mask::$REGISTRY_PASSWORD_VALUE"
 
-          # 健壮性检查
+          # 健壮性检查 (保持不变)
           if [ -z "$DEPLOY_TOKEN_VALUE" ] || [ -z "$DEPLOY_URLS_VALUE" ] || \
              [ -z "$REGISTRY_DOMAIN_VALUE" ] || [ -z "$REGISTRY_PASSWORD_VALUE" ]; then
             echo "::error:: 无法从 Bitwarden 获取一个或多个密钥。"
             exit 1
           fi
 
-          # 注入环境变量
+          # ----------------------------------------------------------------
+          # 变化点：使用 EOF 多行安全语法注入 GITHUB_ENV
+          # ----------------------------------------------------------------
           echo "=== 密钥拉取成功，正在注入到 GITHUB_ENV... ==="
-          echo "DEPLOY_TOKEN=$DEPLOY_TOKEN_VALUE" >> $GITHUB_ENV
-          echo "DEPLOY_URLS=$DEPLOY_URLS_VALUE" >> $GITHUB_ENV
-          echo "REGISTRY_DOMAIN=$REGISTRY_DOMAIN_VALUE" >> $GITHUB_ENV
-          echo "REGISTRY_PASSWORD=$REGISTRY_PASSWORD_VALUE" >> $GITHUB_ENV
+          
+          echo "DEPLOY_TOKEN<<EOF" >> $GITHUB_ENV
+          echo "$DEPLOY_TOKEN_VALUE" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
 
+          echo "DEPLOY_URLS<<EOF" >> $GITHUB_ENV
+          echo "$DEPLOY_URLS_VALUE" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          echo "REGISTRY_DOMAIN<<EOF" >> $GITHUB_ENV
+          echo "$REGISTRY_DOMAIN_VALUE" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+
+          echo "REGISTRY_PASSWORD<<EOF" >> $GITHUB_ENV
+          echo "$REGISTRY_PASSWORD_VALUE" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          
       # 3. 动态登录 Docker 仓库
       - name: 登录 Docker 仓库
         shell: bash
