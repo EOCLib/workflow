@@ -1,65 +1,103 @@
-name: Claude Code
+name: 'Issue Triage (BWSM + Tools)'
 
 on:
-  workflow_call:
+  issues:
+    types: [opened]
+
+# 1. 设置 BWSM 访问令牌 (来自 Secrets)
+env:
+  BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
+  # !! 替换为您存储 Claude YML 配置的 UUID !!
+  BWS_CONFIG_UUID: '02385068-1083-4e67-bb1d-b39501326d1c'
 
 jobs:
-  claude:
-    runs-on: self-hosted
+  triage:
+    runs-on: ubuntu-latest
+    
+    # 2. 权限：必须授予 "issues: write" 权限，gh 命令才能生效
     permissions:
-      contents: read
-      pull-requests: read
       issues: write
-      id-token: write
-
-    # 注入 BWSM 访问令牌和 config.json 配置的 UUID
-    env:
-      BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
-      CONFIG_JSON_UUID: ${{ secrets.CONFIG_JSON_UUID }}
 
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 1
-
-      # 从 BWSM 拉取 config.json 配置文件
-      - name: ⚙️ 从 Bitwarden 拉取 config.json 配置文件
+      # 3. 从 BWSM 拉取 YML 配置文件 (来自您的 deploy-server.yml)
+      # 确保您的 runner 已安装 bws, jq, yq
+      - name: ⚙️ 从 Bitwarden 拉取 YML 配置文件
         shell: bash
         run: |
-          echo "=== 正在从 Bitwarden 拉取 config.json 配置... ==="
-          # 假设 bws 和 jq 已安装在 runner 上
-          CONFIG_JSON_CONTENT=$(bws secret get $CONFIG_JSON_UUID | jq -r .value)
+          echo "=== 正在从 Bitwarden 拉取 YML 配置... ==="
+          CONFIG_YML_CONTENT=$(bws secret get $BWS_CONFIG_UUID | jq -r .value)
 
-          if [ -z "$CONFIG_JSON_CONTENT" ]; then
+          if [ -z "$CONFIG_YML_CONTENT" ]; then
             echo "::error:: 无法从 Bitwarden 拉取配置。请检查 UUID 和访问令牌。"
             exit 1
           fi
-
-          # 掩码整个文件内容，防止敏感信息泄露到日志
-          echo "::add-mask::$CONFIG_JSON_CONTENT"
           
-          # 创建目录并写入配置文件
-          mkdir -p $HOME/.claude-code-router
-          echo "$CONFIG_JSON_CONTENT" > $HOME/.claude-code-router/config.json
-          
-          echo "config.json 配置文件已成功从 Bitwarden 拉取并保存。"
+          echo "$CONFIG_YML_CONTENT" > config.yml
+          echo "::add-mask::$CONFIG_YML_CONTENT"
+          echo "YML 配置文件已成功拉取并保存到 config.yml。"
 
-      - name: Prepare Environment
-        run: |
-          curl -fsSL https://bun.sh/install | bash
+      # 4. 解析配置 (来自您之前的设置)
+      # (我们从 yml 中读取密钥、URL 和模型，并将其设置为后续步骤的变量)
+      - name: ⚙️ 解析 Claude 配置
+        id: set_claude_config
         shell: bash
-
-      - name: Start Claude Code Router
         run: |
-          nohup ~/.bun/bin/bunx @musistudio/claude-code-router@1.0.8 start &
-        shell: bash
+          echo "=== 正在从 config.yml 读取 Claude 配置... ==="
+          # 1. 将 API 密钥设置为 Step Output (用于 with: 块)
+          API_KEY=$(yq e -r '.claude.auth_token' config.yml)
+          echo "api_key=$API_KEY" >> $GITHUB_OUTPUT
+          echo "::add-mask::$API_KEY"
 
-      - name: Run Claude Code
+          # 2. 将其他配置设置为 GITHUB_ENV (用于 env: 块)
+          echo "ANTHROPIC_BASE_URL=$(yq e -r '.claude.base_url' config.yml)" >> $GITHUB_ENV
+          echo "ANTHROPIC_MODEL=$(yq e -r '.claude.model' config.yml)" >> $GITHUB_ENV
+          echo "API_TIMEOUT_MS=$(yq e -r '.claude.timeout_ms' config.yml)" >> $GITHUB_ENV
+
+          echo "Claude 环境变量和 output 已设置。"
+
+      # 5. 运行 Claude Code Action (融合了 BWSM 和 allowedTools)
+      - name: 运行 Claude Code Action (带工具)
         id: claude
-        uses: anthropics/claude-code-action@beta
+        uses: anthropics/claude-code-action@v1
+        
+        # (关键: 传入您的自定义 URL, Model, 和 GITHUB_TOKEN)
         env:
-          ANTHROPIC_BASE_URL: http://localhost:3456
+          ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
+          ANTHROPIC_MODEL: ${{ env.ANTHROPIC_MODEL }}
+          API_TIMEOUT_MS: ${{ env.API_TIMEOUT_MS }}
+          # 必须提供 GITHUB_TOKEN 才能让 gh 命令工作
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          
         with:
-          anthropic_api_key: "any-string-is-ok"
+          # (关键: 使用从 BWSM 解析出的 API Key)
+          claude_code_oauth_token: ${{ steps.set_claude_config.outputs.api_key }}
+          
+          # (关键: 使用您提供的新 prompt 结构)
+          prompt: |
+            REPO: ${{ github.repository }}
+            ISSUE NUMBER: ${{ github.event.issue.number }}
+            TITLE: ${{ github.event.issue.title }}
+            BODY: ${{ github.event.issue.body }}
+            AUTHOR: ${{ github.event.issue.user.login }}
 
+            Analyze this new issue and:
+            1. Determine if it's a bug report, feature request, or question
+            2. Assess priority (critical, high, medium, low)
+            3. Suggest appropriate labels (e.g., 'bug', 'feature', 'question', 'priority:high')
+            4. Check if it duplicates existing issues using 'gh search issues'.
+
+            Based on your analysis:
+            1. Add the appropriate labels using: `gh issue edit [number] --add-label "label1,label2"`
+            2. If it is a duplicate, post a comment using: `gh issue comment [number] --body "This looks like a duplicate of #[original_issue_number]."`
+
+          # (关键: 授权 Claude 使用 gh 命令)
+          # (我已根据您的 prompt 扩展了授权, 确保 comment 和 search 也能用)
+          claude_args: |
+            --allowedTools "Bash(gh issue:edit),Bash(gh issue:comment),Bash(gh search:issues)"
+      
+      # 6. 清理临时配置文件
+      - name: 清理临时配置
+        if: always() # 无论成功或失败都执行
+        run: |
+          echo "正在删除 config.yml..."
+          rm -f config.yml
