@@ -3,7 +3,9 @@
 # 
 # 使用方法：
 # 1. 将 your-org/workflow 替换为实际的 workflow 仓库路径
-# 2. 在目标仓库的 Secrets 中配置 OPENAI_API_KEY
+# 2. 在 workflow 仓库的 Secrets 中配置 BWS_ACCESS_TOKEN 和 CONFIG_JSON_UUID
+#    - BWS_ACCESS_TOKEN: Bitwarden Secrets Manager 的访问令牌
+#    - CONFIG_JSON_UUID: 存储 config.json 配置文件的 Bitwarden Secret 的 UUID
 
 name: Claude Issue Comment
 
@@ -17,6 +19,4 @@ jobs:
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude'))
     # 请将 your-org/workflow 替换为实际的仓库路径，例如：catvote/workflow
     uses: EOCLib/workflows/.github/workflows/claude-issue.yml@main
-    secrets:
-      OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
 

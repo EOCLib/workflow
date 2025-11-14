@@ -2,9 +2,6 @@ name: Claude Code
 
 on:
   workflow_call:
-    secrets:
-      OPENAI_API_KEY:
-        required: true
 
 jobs:
   claude:
@@ -15,25 +12,42 @@ jobs:
       issues: write
       id-token: write
 
+    # 注入 BWSM 访问令牌和 config.json 配置的 UUID
+    env:
+      BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
+      CONFIG_JSON_UUID: ${{ secrets.CONFIG_JSON_UUID }}
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 1
 
+      # 从 BWSM 拉取 config.json 配置文件
+      - name: ⚙️ 从 Bitwarden 拉取 config.json 配置文件
+        shell: bash
+        run: |
+          echo "=== 正在从 Bitwarden 拉取 config.json 配置... ==="
+          # 假设 bws 和 jq 已安装在 runner 上
+          CONFIG_JSON_CONTENT=$(bws secret get $CONFIG_JSON_UUID | jq -r .value)
+
+          if [ -z "$CONFIG_JSON_CONTENT" ]; then
+            echo "::error:: 无法从 Bitwarden 拉取配置。请检查 UUID 和访问令牌。"
+            exit 1
+          fi
+
+          # 掩码整个文件内容，防止敏感信息泄露到日志
+          echo "::add-mask::$CONFIG_JSON_CONTENT"
+          
+          # 创建目录并写入配置文件
+          mkdir -p $HOME/.claude-code-router
+          echo "$CONFIG_JSON_CONTENT" > $HOME/.claude-code-router/config.json
+          
+          echo "config.json 配置文件已成功从 Bitwarden 拉取并保存。"
+
       - name: Prepare Environment
         run: |
           curl -fsSL https://bun.sh/install | bash
-          mkdir -p $HOME/.claude-code-router
-          cat << 'EOF' > $HOME/.claude-code-router/config.json
-          {
-            "log": true,
-            "NON_INTERACTIVE_MODE": true,
-            "OPENAI_API_KEY": "${{ secrets.OPENAI_API_KEY }}",
-            "OPENAI_BASE_URL": "https://api.deepseek.com",
-            "OPENAI_MODEL": "deepseek-chat"
-          }
-          EOF
         shell: bash
 
       - name: Start Claude Code Router
