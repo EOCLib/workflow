@@ -28,7 +28,13 @@ jobs:
       id-token: write
 
     steps:
-      # 3. 从 BWSM 拉取 YML 配置文件 (来自您的 deploy-server.yml)
+      # 1. 检出代码（Claude Code Action 需要 git 仓库上下文）
+      - name: 📥 检出代码
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      # 2. 从 BWSM 拉取 YML 配置文件 (来自您的 deploy-server.yml)
       # 确保您的 runner 已安装 bws, jq, yq
       - name: ⚙️ 从 Bitwarden 拉取 YML 配置文件
         shell: bash
@@ -45,7 +51,7 @@ jobs:
           echo "::add-mask::$CONFIG_YML_CONTENT"
           echo "YML 配置文件已成功拉取并保存到 config.yml。"
 
-      # 4. 解析配置 (从 yml 中读取中转服务的配置)
+      # 3. 解析配置 (从 yml 中读取中转服务的配置)
       - name: ⚙️ 解析中转服务配置
         id: set_router_config
         shell: bash
