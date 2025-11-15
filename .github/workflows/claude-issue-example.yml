@@ -1,11 +1,9 @@
 # 这是一个示例文件，展示如何在其他仓库中使用 Claude Code workflow
-# 在其他仓库中，创建类似的 workflow 文件即可
 # 
 # 使用方法：
-# 1. 将 your-org/workflow 替换为实际的 workflow 仓库路径
-# 2. 在 workflow 仓库的 Secrets 中配置 BWS_ACCESS_TOKEN 和 CONFIG_JSON_UUID
+# 1. 将 EOCLib/workflow 替换为实际的 workflow 仓库路径
+# 2. 在 workflow 仓库的 Secrets 中配置 BWS_ACCESS_TOKEN
 #    - BWS_ACCESS_TOKEN: Bitwarden Secrets Manager 的访问令牌
-#    - CONFIG_JSON_UUID: 存储 config.json 配置文件的 Bitwarden Secret 的 UUID
 
 name: Claude Issue Comment
 
@@ -17,14 +15,10 @@ jobs:
   claude:
     if: |
       (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@claude'))
-    # 必须声明权限，这些权限会传递给被调用的工作流
-    # 需要 id-token: write 权限以便 Claude Code Action 获取 OIDC token
     permissions:
       issues: write
       id-token: write
-    # 请将 EOCLib/workflow 替换为实际的仓库路径，例如：catvote/workflow
     uses: EOCLib/workflow/.github/workflows/claude-issue.yml@main
     secrets:
-      # 传递 BWS_ACCESS_TOKEN secret 给被调用的工作流
       BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
 
