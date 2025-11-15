@@ -45,41 +45,88 @@ jobs:
           echo "::add-mask::$CONFIG_YML_CONTENT"
           echo "YML 配置文件已成功拉取并保存到 config.yml。"
 
-      # 4. 解析配置 (来自您之前的设置)
-      # (我们从 yml 中读取密钥、URL 和模型，并将其设置为后续步骤的变量)
-      - name: ⚙️ 解析 Claude 配置
-        id: set_claude_config
+      # 4. 解析配置 (从 yml 中读取中转服务的配置)
+      - name: ⚙️ 解析中转服务配置
+        id: set_router_config
         shell: bash
         run: |
-          echo "=== 正在从 config.yml 读取 Claude 配置... ==="
-          # 1. 将 API 密钥设置为 Step Output (用于 with: 块)
-          API_KEY=$(yq e -r '.claude.auth_token' config.yml)
-          echo "api_key=$API_KEY" >> $GITHUB_OUTPUT
-          echo "::add-mask::$API_KEY"
+          echo "=== 正在从 config.yml 读取中转服务配置... ==="
+          # 读取中转服务的配置（API key, base URL, model）
+          ANTHROPIC_API_KEY=$(yq e -r '.router.api_key' config.yml)
+          ANTHROPIC_BASE_URL=$(yq e -r '.router.base_url' config.yml)
+          ANTHROPIC_MODEL=$(yq e -r '.router.model' config.yml)
+          
+          echo "anthropic_api_key=$ANTHROPIC_API_KEY" >> $GITHUB_OUTPUT
+          echo "anthropic_base_url=$ANTHROPIC_BASE_URL" >> $GITHUB_OUTPUT
+          echo "anthropic_model=$ANTHROPIC_MODEL" >> $GITHUB_OUTPUT
+          
+          echo "::add-mask::$ANTHROPIC_API_KEY"
+          echo "中转服务配置已读取。"
 
-          # 2. 将其他配置设置为 GITHUB_ENV (用于 env: 块)
-          echo "ANTHROPIC_BASE_URL=$(yq e -r '.claude.base_url' config.yml)" >> $GITHUB_ENV
-          echo "ANTHROPIC_MODEL=$(yq e -r '.claude.model' config.yml)" >> $GITHUB_ENV
-          echo "API_TIMEOUT_MS=$(yq e -r '.claude.timeout_ms' config.yml)" >> $GITHUB_ENV
+      # 5. 准备环境并启动 Claude Code Router 中转服务
+      # - name: 🚀 准备环境并启动中转服务
+      #   shell: bash
+      #   run: |
+      #     echo "=== 正在安装 bun 并启动 Claude Code Router... ==="
+      #     # 安装 bun（如果尚未安装）
+      #     if ! command -v bun &> /dev/null; then
+      #       curl -fsSL https://bun.sh/install | bash
+      #       export PATH="$HOME/.bun/bin:$PATH"
+      #     fi
+          
+      #     # 创建配置目录
+      #     mkdir -p $HOME/.claude-code-router
+          
+      #     # 创建 router 配置文件
+      #     cat << EOF > $HOME/.claude-code-router/config.json
+      #     {
+      #       "log": true,
+      #       "NON_INTERACTIVE_MODE": true,
+      #       "OPENAI_API_KEY": "${{ steps.set_router_config.outputs.openai_api_key }}",
+      #       "OPENAI_BASE_URL": "${{ steps.set_router_config.outputs.openai_base_url }}",
+      #       "OPENAI_MODEL": "${{ steps.set_router_config.outputs.openai_model }}"
+      #     }
+      #     EOF
+          
+      #     echo "::add-mask::${{ steps.set_router_config.outputs.openai_api_key }}"
+          
+      #     # 启动 router 服务（后台运行）
+      #     # 确保 bun 在 PATH 中
+      #     export PATH="$HOME/.bun/bin:$PATH"
+      #     nohup bunx @musistudio/claude-code-router@1.0.8 start > /tmp/claude-router.log 2>&1 &
+      #     ROUTER_PID=$!
+      #     echo "ROUTER_PID=$ROUTER_PID" >> $GITHUB_ENV
+          
+      #     # 等待服务启动
+      #     echo "等待 router 服务启动..."
+      #     sleep 5
+          
+      #     # 检查服务是否运行
+      #     if ! ps -p $ROUTER_PID > /dev/null; then
+      #       echo "::error::Router 服务启动失败"
+      #       cat /tmp/claude-router.log
+      #       exit 1
+      #     fi
+          
+      #     echo "Router 服务已启动 (PID: $ROUTER_PID)"
 
-          echo "Claude 环境变量和 output 已设置。"
-
-      # 5. 运行 Claude Code Action (融合了 BWSM 和 allowedTools)
-      - name: 运行 Claude Code Action (带工具)
+      # 6. 运行 Claude Code Action (通过中转服务)
+      - name: 🤖 运行 Claude Code Action (带工具)
         id: claude
-        uses: anthropics/claude-code-action@v1
-        
-        # (关键: 传入您的自定义 URL, Model, 和 GITHUB_TOKEN)
+        uses: anthropics/claude-code-action@beta
         env:
-          ANTHROPIC_BASE_URL: ${{ env.ANTHROPIC_BASE_URL }}
-          ANTHROPIC_MODEL: ${{ env.ANTHROPIC_MODEL }}
-          API_TIMEOUT_MS: ${{ env.API_TIMEOUT_MS }}
+          # 使用本地中转服务
+          ANTHROPIC_BASE_URL: ${{ steps.set_router_config.outputs.anthropic_base_url }}
+          ANTHROPIC_MODEL: ${{ steps.set_router_config.outputs.anthropic_model }}
+          API_TIMEOUT_MS: 3000000
+
+
           # 必须提供 GITHUB_TOKEN 才能让 gh 命令工作
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           
         with:
-          # (关键: 使用从 BWSM 解析出的 API Key)
-          claude_code_oauth_token: ${{ steps.set_claude_config.outputs.api_key }}
+          # 使用中转服务时，API key 可以是任意字符串
+          anthropic_api_key: ${{ steps.set_router_config.outputs.anthropic_api_key }}
           
           # (关键: 使用您提供的新 prompt 结构)
           prompt: |
@@ -104,9 +151,20 @@ jobs:
           claude_args: |
             --allowedTools "Bash(gh issue:edit),Bash(gh issue:comment),Bash(gh search:issues)"
       
-      # 6. 清理临时配置文件
-      - name: 清理临时配置
+      # 7. 清理临时配置和停止中转服务
+      - name: 🧹 清理临时配置和停止中转服务
         if: always() # 无论成功或失败都执行
+        env:
+          ROUTER_PID: ${{ env.ROUTER_PID }}
+        shell: bash
         run: |
-          echo "正在删除 config.yml..."
+          echo "正在停止 router 服务..."
+          if [ ! -z "$ROUTER_PID" ]; then
+            kill $ROUTER_PID 2>/dev/null || true
+          fi
+          # 确保所有 router 进程都被停止
+          pkill -f "claude-code-router" 2>/dev/null || true
+          
+          echo "正在删除临时文件..."
           rm -f config.yml
+          rm -f /tmp/claude-router.log
