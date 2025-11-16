@@ -1,4 +1,4 @@
-name: 'Issue Triage (BWSM + Tools)'
+name: "Issue Triage (BWSM + Tools)"
 
 on:
   issues:
@@ -7,19 +7,19 @@ on:
     # 允许被其他工作流调用
     secrets:
       BWS_ACCESS_TOKEN:
-        description: 'Bitwarden Secrets Manager 访问令牌'
+        description: "Bitwarden Secrets Manager 访问令牌"
         required: true
 
 # 设置 BWSM 访问令牌
 # 当作为可重用工作流被调用时，使用传入的 secret；直接触发时使用当前仓库的 secret
 env:
   BWS_ACCESS_TOKEN: ${{ secrets.BWS_ACCESS_TOKEN }}
-  BWS_CONFIG_UUID: '02385068-1083-4e67-bb1d-b39501326d1c'
+  BWS_CONFIG_UUID: "02385068-1083-4e67-bb1d-b39501326d1c"
 
 jobs:
   triage:
     runs-on: self-hosted
-    
+
     permissions:
       issues: write
       id-token: write
@@ -43,7 +43,7 @@ jobs:
             echo "::error:: 无法从 Bitwarden 拉取配置。请检查 UUID 和访问令牌。"
             exit 1
           fi
-          
+
           echo "$CONFIG_YML_CONTENT" > config.yml
           echo "::add-mask::$CONFIG_YML_CONTENT"
           echo "YML 配置文件已成功拉取并保存到 config.yml。"
@@ -58,11 +58,11 @@ jobs:
           ANTHROPIC_API_KEY=$(yq e -r '.router.api_key' config.yml)
           ANTHROPIC_BASE_URL=$(yq e -r '.router.base_url' config.yml)
           ANTHROPIC_MODEL=$(yq e -r '.router.model' config.yml)
-          
+
           echo "anthropic_api_key=$ANTHROPIC_API_KEY" >> $GITHUB_OUTPUT
           echo "anthropic_base_url=$ANTHROPIC_BASE_URL" >> $GITHUB_OUTPUT
           echo "anthropic_model=$ANTHROPIC_MODEL" >> $GITHUB_OUTPUT
-          
+
           echo "::add-mask::$ANTHROPIC_API_KEY"
           echo "中转服务配置已读取。"
 
@@ -73,14 +73,14 @@ jobs:
         env:
           # 使用中转服务
           API_TIMEOUT_MS: 3000000
-          ANTHROPIC_BASE_URL: http://localhost:3456
+          ANTHROPIC_BASE_URL: http://127.0.0.1:3456
           # 必须提供 GITHUB_TOKEN 才能让 gh 命令工作
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          
+
         with:
           # 使用中转服务时，API key 可以是任意字符串
           anthropic_api_key: "x-x-x"
-          
+
           prompt: |
             REPO: ${{ github.repository }}
             ISSUE NUMBER: ${{ github.event.issue.number }}
@@ -100,7 +100,7 @@ jobs:
 
           claude_args: |
             --allowedTools "Bash(gh issue:edit),Bash(gh issue:comment),Bash(gh search:issues)"
-      
+
       # 5. 清理临时配置文件
       - name: 🧹 清理临时配置
         if: always()
