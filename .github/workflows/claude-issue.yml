@@ -23,6 +23,9 @@ jobs:
     permissions:
       issues: write
       id-token: write
+      contents: read  # 明确只读权限，防止意外修改代码
+      pull-requests: none  # 明确禁止 PR 操作
+      actions: none  # 禁止触发其他 workflow
 
     steps:
       # 1. 检出代码（Claude Code Action 需要 git 仓库上下文）
