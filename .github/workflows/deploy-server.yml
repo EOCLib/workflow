@@ -10,7 +10,7 @@ on:
 
 jobs:
   deploy:
-    runs-on: self-hosted
+    runs-on: Linux
 
     # 1. 注入 BWSM 访问令牌和 YML 配置的 UUID
     env:
